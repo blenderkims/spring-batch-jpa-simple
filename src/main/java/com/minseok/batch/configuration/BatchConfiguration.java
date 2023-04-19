@@ -32,9 +32,10 @@ public class BatchConfiguration {
     public ThreadPoolTaskExecutor workerTaskExecutor() {
         ThreadPoolTaskExecutor taskExecutor = new ThreadPoolTaskExecutor();
         taskExecutor.setCorePoolSize((int) (POOL_SIZE * 1.5));
-        taskExecutor.setMaxPoolSize((int) (POOL_SIZE * 2));
+        taskExecutor.setMaxPoolSize(POOL_SIZE * 2);
         taskExecutor.setWaitForTasksToCompleteOnShutdown(true);
         taskExecutor.setAllowCoreThreadTimeOut(true);
+        taskExecutor.setThreadNamePrefix("worker-thread-");
         taskExecutor.initialize();
         return taskExecutor;
     }
