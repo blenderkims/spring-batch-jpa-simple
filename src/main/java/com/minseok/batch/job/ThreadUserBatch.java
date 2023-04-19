@@ -10,7 +10,9 @@ import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecutionListener;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
+import org.springframework.batch.core.configuration.annotation.JobScope;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
+import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.database.JpaPagingItemReader;
@@ -78,6 +80,7 @@ public class ThreadUserBatch extends AbstractBatch {
                 .build();
     }
     @Bean(JOB_NAME + "StartStep")
+    @JobScope
     public Step startStep() {
         log.debug("[start step] tb_user to csv export");
         return stepBuilderFactory.get(JOB_NAME + "StartStep")
@@ -96,6 +99,7 @@ public class ThreadUserBatch extends AbstractBatch {
      * @return the jpa paging item reader
      */
     @Bean(name = JOB_NAME + "ItemReader", destroyMethod = "close")
+    @StepScope
     public JpaPagingItemReader<User> itemReader() {
         log.debug("[reader] jpa paging read");
         return new JpaPagingItemReaderBuilder<User>()
@@ -112,8 +116,9 @@ public class ThreadUserBatch extends AbstractBatch {
      * @return the item processor
      */
     @Bean(JOB_NAME + "ItemProcessor")
+    @StepScope
     public ItemProcessor<User, UserBak> itemProcessor() {
-        return  user -> UserBak.of(user);
+        return (user) -> UserBak.of(user);
     }
 
     /**
@@ -122,6 +127,7 @@ public class ThreadUserBatch extends AbstractBatch {
      * @return the flat file item writer
      */
     @Bean(JOB_NAME + "ItemWriter")
+    @StepScope
     public FlatFileItemWriter<UserBak> itemWriter() {
         log.debug("[writer] flat file writer (csv export)");
         final BeanWrapperFieldExtractor<UserBak> extractor = new BeanWrapperFieldExtractor<>();

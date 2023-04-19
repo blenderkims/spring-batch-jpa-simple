@@ -10,6 +10,7 @@ import org.springframework.batch.core.Job;
 import org.springframework.batch.core.JobExecutionListener;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
+import org.springframework.batch.core.configuration.annotation.JobScope;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
@@ -101,7 +102,7 @@ public class FlowPartitionUserBatch extends AbstractBatch {
 
     @Bean(JOB_NAME)
     public Job batchJob() {
-        log.debug("[start job] tb_user to tb_user_bak synchronization data");
+        log.info("[start job] tb_user to tb_user_bak synchronization data");
         return jobBuilderFactory.get(JOB_NAME)
                 .start(startStep())
                 .next(cleanupStep())
@@ -110,8 +111,9 @@ public class FlowPartitionUserBatch extends AbstractBatch {
                 .build();
     }
     @Bean(JOB_NAME + "StartStep")
+    @JobScope
     public Step startStep() {
-        log.debug("[start step] tb_user to tb_user_bak merge data");
+        log.info("[start step] tb_user to tb_user_bak merge data");
         return stepBuilderFactory.get(JOB_NAME + "StartStep")
                 .partitioner("partitionStep", partitioner())
                 .step(partitionStep())
@@ -126,12 +128,12 @@ public class FlowPartitionUserBatch extends AbstractBatch {
      */
     @Bean(JOB_NAME + "PartitionStep")
     public Step partitionStep() {
-        log.debug("[partition step] tb_user to tb_user_bak merge data");
+        log.info("[partition step] tb_user to tb_user_bak merge data");
         return stepBuilderFactory.get(JOB_NAME + "PartitionStep")
                 .<User, UserBak>chunk(CHUNK_SIZE)
-                .reader(itemReader(null, null))
+                .reader(itemReader(null, null, null))
                 .processor(itemProcessor())
-                .writer(itemWriter(null, null))
+                .writer(itemWriter(null, null, null))
                 .faultTolerant()
                 .retry(OptimisticLockException.class)
                 .retryLimit(RETRY_LIMIT)
@@ -145,6 +147,7 @@ public class FlowPartitionUserBatch extends AbstractBatch {
      * @return the step
      */
     @Bean(JOB_NAME + "CleanupStep")
+    @JobScope
     public Step cleanupStep() {
         log.debug("[cleanup step] tb_user_bak delete all remain data");
         return stepBuilderFactory.get(JOB_NAME + "CleanupStep")
@@ -161,22 +164,28 @@ public class FlowPartitionUserBatch extends AbstractBatch {
     /**
      * Item reader jpa paging item reader.
      *
-     * @param minId the min id
-     * @param maxId the max id
+     * @param startId the start id
+     * @param endId   the end id
+     * @param isLast  the is last
      * @return the jpa paging item reader
      */
     @Bean(name = JOB_NAME + "ItemReader", destroyMethod = "close")
     @StepScope
     public JpaPagingItemReader<User> itemReader(
-            @Value("#{stepExecutionContext[minId]}") String minId
-            , @Value("#{stepExecutionContext[maxId]}") String maxId) {
-        log.debug("[reader] min id: {}, max id: {}", minId, maxId);
+            @Value("#{stepExecutionContext[startId]}") String startId
+            , @Value("#{stepExecutionContext[endId]}") String endId
+            , @Value("#{stepExecutionContext[isLast]}") Boolean isLast) {
+        log.debug("[reader] start id: {}, end id: {}, last: {}", startId, endId, isLast);
+        StringBuilder query = new StringBuilder();
+        query.append("select u from User u where u.id >= :startId and u.id");
+        query.append(isLast ? " <= " : " < ");
+        query.append(":endId order by u.id asc");
         return new JpaPagingItemReaderBuilder<User>()
                 .name(JOB_NAME + "ItemReader")
                 .entityManagerFactory(entityManagerFactory)
                 .pageSize(PAGE_SIZE)
-                .queryString("select u from User u where u.id between :minId and :maxId")
-                .parameterValues(Map.of("minId", minId, "maxId", maxId))
+                .queryString(query.toString())
+                .parameterValues(Map.of("startId", startId, "endId", endId))
                 .build();
     }
 
@@ -194,16 +203,18 @@ public class FlowPartitionUserBatch extends AbstractBatch {
     /**
      * Item writer jpa item writer.
      *
-     * @param minId the min id
-     * @param maxId the max id
+     * @param startId the start id
+     * @param endId   the end id
+     * @param isLast  the is last
      * @return the jpa item writer
      */
     @Bean(JOB_NAME + "ItemWriter")
     @StepScope
     public JpaItemWriter<UserBak> itemWriter(
-            @Value("#{stepExecutionContext[minId]}") String minId
-            , @Value("#{stepExecutionContext[maxId]}") String maxId) {
-        log.debug("[writer] min id: {}, max id: {}", minId, maxId);
+            @Value("#{stepExecutionContext[startId]}") String startId
+            , @Value("#{stepExecutionContext[endId]}") String endId
+            , @Value("#{stepExecutionContext[isLast]}") Boolean isLast) {
+        log.debug("[writer] start id: {}, end id: {}, last: {}", startId, endId, isLast);
         return new JpaItemWriterBuilder<UserBak>()
                 .entityManagerFactory(entityManagerFactory)
                 .build();

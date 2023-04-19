@@ -7,14 +7,15 @@ package com.minseok.batch.job;
  * date         : 2023/04/11
  * description  :
  */
-
 import com.minseok.batch.entity.User;
 import com.minseok.batch.entity.UserBak;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.batch.core.Job;
 import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
+import org.springframework.batch.core.configuration.annotation.JobScope;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
+import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.core.launch.support.RunIdIncrementer;
 import org.springframework.batch.item.ItemProcessor;
 import org.springframework.batch.item.ItemWriter;
@@ -24,10 +25,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import javax.persistence.EntityManagerFactory;
-
-/**
- * The type Simple user batch.
- */
 @Slf4j
 @Configuration
 public class SimpleUserBatch extends AbstractBatch {
@@ -62,6 +59,7 @@ public class SimpleUserBatch extends AbstractBatch {
     }
 
     @Bean(JOB_NAME + "StartStep")
+    @JobScope
     public Step startStep() {
         log.debug("[start step] tb_user to tb_user_bak print");
         return stepBuilderFactory.get(JOB_NAME + "StartStep")
@@ -78,6 +76,7 @@ public class SimpleUserBatch extends AbstractBatch {
      * @return the jpa paging item reader
      */
     @Bean(name = JOB_NAME + "ItemReader", destroyMethod = "close")
+    @StepScope
     public JpaPagingItemReader<User> itemReader() {
         log.debug("[reader] jpa paging read");
         return new JpaPagingItemReaderBuilder<User>()
@@ -94,8 +93,9 @@ public class SimpleUserBatch extends AbstractBatch {
      * @return the item processor
      */
     @Bean(JOB_NAME + "ItemProcessor")
+    @StepScope
     public ItemProcessor<User, UserBak> itemProcessor() {
-        return  user -> UserBak.of(user);
+        return (user) -> UserBak.of(user);
     }
 
     /**
@@ -104,6 +104,7 @@ public class SimpleUserBatch extends AbstractBatch {
      * @return the item writer
      */
     @Bean(JOB_NAME + "ItemWriter")
+    @StepScope
     public ItemWriter<UserBak> itemWriter() {
         log.debug("[writer] tb_user_bak print");
         return items -> {
